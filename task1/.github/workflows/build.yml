@@ -1,0 +1,67 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build python3-pip doxygen
+
+      - name: Install Conan
+        run: pip install --break-system-packages conan
+
+      - name: Conan profile
+        run: |
+          conan profile detect --force
+          conan profile show
+
+      - name: Install dependencies
+        run: conan install . --output-folder=build --build=missing -s build_type=Release
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Conan and Ninja
+        run: |
+          pip install conan
+          choco install ninja -y
+
+      - name: Conan profile (Ninja)
+        run: |
+          conan profile detect --force
+          conan profile show
+
+      - name: Install dependencies
+        run: conan install . --output-folder=build --build=missing -s build_type=Release
+
+      - name: Configure (Ninja for compile_commands.json)
+        run: cmake -B build -G "Ninja" -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
